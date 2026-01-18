@@ -7,8 +7,10 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/RiskyFeryansyahP/paycast/internal/store"
+	"github.com/RiskyFeryansyahP/paycast/pkg/cmd"
 	"github.com/RiskyFeryansyahP/paycast/pkg/logger"
 	"github.com/creack/pty"
 	"github.com/spf13/cobra"
@@ -165,46 +167,99 @@ func dbRun(cobraCmd *cobra.Command, args []string) {
 
 	configContext := config.Contexts[currentContext]
 
+	now := time.Now()
+
+	if now.After(configContext.Expiry) {
+		updatedConfigContext, err := cmd.Relogin(ctx, &configContext)
+
+		if err != nil {
+			logger.Fatal().
+				Err(err).
+				Msg("Failed to relogin to set context when context expired")
+		}
+
+		config.Contexts[currentContext] = *updatedConfigContext
+
+		err = store.Save(ctx, config)
+
+		if err != nil {
+			logger.Fatal().
+				Err(err).
+				Msg("Failed to save configuration file")
+		}
+	}
+
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	for _, v := range configContext.Database {
-		go func(db store.Database) {
-			dbUser := fmt.Sprintf("--db-user=%s", db.User)
-			dbName := fmt.Sprintf("--db-name=%s", db.Name)
-			tunnel := fmt.Sprintf("--tunnel=%s", db.Tunnel)
-			port := fmt.Sprintf("--port=%d", db.Port)
+	go func() {
+		for {
+			for _, v := range configContext.Database {
+				go func(db store.Database) {
+					dbUser := fmt.Sprintf("--db-user=%s", db.User)
+					dbName := fmt.Sprintf("--db-name=%s", db.Name)
+					tunnel := fmt.Sprintf("--tunnel=%s", db.Tunnel)
+					port := fmt.Sprintf("--port=%d", db.Port)
 
-			cmd := exec.Command("tsh", "proxy", "db", dbUser, dbName, tunnel, port)
-			cmd.Env = append(os.Environ(), "TERM=dumb")
+					cmd := exec.Command("tsh", "proxy", "db", dbUser, dbName, tunnel, port)
+					cmd.Env = append(os.Environ(), "TERM=dumb")
 
-			ptyF, err := pty.Start(cmd)
+					ptyF, err := pty.Start(cmd)
 
-			if err != nil {
-				logger.Fatal().
-					Err(err).
-					Str("database", v.Name).
-					Msg("Failed to start database proxy")
+					if err != nil {
+						logger.Fatal().
+							Err(err).
+							Str("database", v.Name).
+							Msg("Failed to start database proxy")
+					}
+					defer ptyF.Close()
+
+					logger.Info().
+						Str("user", v.User).
+						Str("database", v.Name).
+						Int("port", int(v.Port)).
+						Str("host", "localhost").
+						Msg("Database proxy started")
+
+					err = cmd.Wait()
+
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("database", v.Name).
+							Msg("Database proxy terminated with error")
+					}
+				}(v)
 			}
-			defer ptyF.Close()
 
-			logger.Info().
-				Str("user", v.User).
-				Str("database", v.Name).
-				Int("port", int(v.Port)).
-				Str("host", "localhost").
-				Msg("Database proxy started")
+			duration := configContext.Expiry.Sub(now)
 
-			err = cmd.Wait()
+			timer := time.NewTimer(duration)
 
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("database", v.Name).
-					Msg("Database proxy terminated with error")
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				updatedConfigContext, err := cmd.Relogin(ctx, &configContext)
+
+				if err != nil {
+					logger.Fatal().
+						Err(err).
+						Msg("Failed to relogin to set context when context expired")
+				}
+
+				config.Contexts[currentContext] = *updatedConfigContext
+
+				err = store.Save(ctx, config)
+
+				if err != nil {
+					logger.Fatal().
+						Err(err).
+						Msg("Failed to save configuration file")
+				}
 			}
-		}(v)
-	}
+		}
+	}()
 
 	// Block until we receive our signal.
 	<-c
