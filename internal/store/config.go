@@ -10,6 +10,7 @@ import (
 const (
 	DIR       = ".paycast"
 	FILE_NAME = "config"
+	EXTENSION = ".json"
 )
 
 // Error messages
