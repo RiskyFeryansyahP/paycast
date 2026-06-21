@@ -1,30 +1,42 @@
-package main
+package cmd
 
 import (
-	"log"
+	"fmt"
 
 	"github.com/RiskyFeryansyahP/paycast/internal/config"
 	"github.com/RiskyFeryansyahP/paycast/internal/database"
 	"github.com/spf13/cobra"
 )
 
-func main() {
-	rootCmd := &cobra.Command{
+var (
+	version = "dev"
+
+	rootCmd = &cobra.Command{
 		Use:   "paycast",
 		Short: "Internal CLI tool for managing contexts and workflows",
 		Long:  "Paycast helps manage authentication contexts, database proxies, and other development tools",
 	}
+
+	versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print version the CLI installed",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(version)
+		},
+	}
+)
+
+func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
 	configCmd := config.NewConfigCommand()
 	dbCmd := database.NewConfigCommand()
 
 	rootCmd.AddGroup(&cobra.Group{ID: "basic", Title: "Basic Commands:"})
+	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(configCmd, dbCmd)
+}
 
-	err := rootCmd.Execute()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+func Execute() error {
+	return rootCmd.Execute()
 }
