@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/RiskyFeryansyahP/paycast/internal/config"
 	"github.com/RiskyFeryansyahP/paycast/internal/database"
@@ -21,6 +22,13 @@ var (
 		Use:   "version",
 		Short: "Print version the CLI installed",
 		Run: func(cmd *cobra.Command, args []string) {
+			info, ok := debug.ReadBuildInfo()
+
+			if ok && info.Main.Version != "" {
+				fmt.Println(info.Main.Version)
+				return
+			}
+
 			fmt.Println(version)
 		},
 	}
