@@ -21,7 +21,7 @@ func New(ctx context.Context, config Config) error {
 	}
 
 	configDir := filepath.Join(homeDir, DIR)
-	configFile := filepath.Join(configDir, FILE_NAME)
+	configFile := filepath.Join(configDir, FILE_NAME+EXTENSION)
 
 	err = os.MkdirAll(configDir, 0700)
 
