@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/RiskyFeryansyahP/paycast/internal/store"
+	"github.com/RiskyFeryansyahP/paycast/pkg/cmd"
 	"github.com/RiskyFeryansyahP/paycast/pkg/logger"
 	"github.com/creack/pty"
 	"github.com/spf13/cobra"
@@ -311,7 +312,7 @@ func useContextRun(cobraCmd *cobra.Command, args []string) {
 
 	contextName := args[0]
 
-	_, ok := config.Contexts[contextName]
+	contextUsed, ok := config.Contexts[contextName]
 
 	if !ok {
 		logger.Fatal().
@@ -326,6 +327,14 @@ func useContextRun(cobraCmd *cobra.Command, args []string) {
 		logger.Fatal().
 			Err(err).
 			Msg("Failed to save configuration file")
+	}
+
+	_, err = cmd.Relogin(ctx, &contextUsed)
+
+	if err != nil {
+		logger.Fatal().
+			Err(err).
+			Msg("Failed to change to given context")
 	}
 
 	logger.Info().
