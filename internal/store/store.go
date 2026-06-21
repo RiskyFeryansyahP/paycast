@@ -145,7 +145,7 @@ func getConfigFile() (string, error) {
 	}
 
 	configDir := filepath.Join(homeDir, DIR)
-	configFile := filepath.Join(configDir, FILE_NAME)
+	configFile := filepath.Join(configDir, FILE_NAME+EXTENSION)
 
 	return configFile, nil
 }
